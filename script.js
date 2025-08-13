@@ -1,4 +1,3 @@
-
 let schema = {};                    
 let GROUP_KEYS = [];                
 let PARAMS_BY_GROUP = {};           
@@ -25,6 +24,7 @@ const metaVersion = document.getElementById("meta-version");
 
 const iconInput = document.getElementById("mod-icon");
 const iconPreview = document.getElementById("icon-preview");
+const removeIconButton = document.getElementById("remove-icon-btn");
 
 const folderSelect = document.getElementById("folder-select");
 const fileInput = document.getElementById("file-input");
@@ -35,6 +35,10 @@ const addObjBtn = document.getElementById("add-object-btn");
 const groupsRoot = document.getElementById("groups-root");
 
 const jsonPreview = document.getElementById("json-preview");
+const metaPreview = document.getElementById("meta-preview");
+const previewTitle = document.getElementById("preview-title");
+const previewDescription = document.getElementById("preview-description");
+const previewAuthor = document.getElementById("preview-author");
 
 const exportBtn = document.getElementById("export-btn");
 const importBtn = document.getElementById("import-btn");
@@ -44,11 +48,8 @@ const applyBtn = document.getElementById("apply-json");
 const formatBtn = document.getElementById("format-json");
 const codeError = document.getElementById("code-error");
 
-window.addEventListener('beforeunload', (event) => {
-    event.preventDefault(); 
-});
 
-
+// Monaco Editor Setup
 let cm = CodeMirror(document.getElementById("editor"), {
   value: "{\n  \n}",
   mode: {name:"javascript", json:true},
@@ -114,15 +115,27 @@ cm.on("change", debounce(()=>{
     model["@author"]=metaAuthor.value || undefined;
     model["@version"]=metaVersion.value || undefined;
     cleanupMeta();
+    updateMetaPreview();
     repaint();
   });
 });
+
 function cleanupMeta(){
   ["@title","@description","@author","@version"].forEach(k=>{
     if(!model[k]) delete model[k];
   });
 }
 
+function updateMetaPreview() {
+  if (model["@title"] || model["@description"] || model["@author"]) {
+    metaPreview.classList.remove("d-none");
+    previewTitle.innerHTML = model["@title"] || "Название мода";
+    previewDescription.innerHTML = (model["@description"] || "Описание мода").replace(/\n/g, '<br>');
+    previewAuthor.innerHTML = model["@author"] ? `Автор: ${model["@author"]}` : "Автор: Не указан";
+  } else {
+    metaPreview.classList.add("d-none");
+  }
+}
 
 iconInput.addEventListener("change", e=>{
   const f = e.target.files[0];
@@ -140,8 +153,17 @@ iconInput.addEventListener("change", e=>{
       modIconFile = f;
       iconPreview.src = img.src;
       iconPreview.classList.remove("d-none");
+      removeIconButton.classList.remove("d-none");
     }
   };
+});
+
+removeIconButton.addEventListener("click", () => {
+    iconInput.value = "";
+    iconPreview.classList.add("d-none");
+    iconPreview.removeAttribute("src");
+    modIconFile = null;
+    removeIconButton.classList.add("d-none");
 });
 
 
@@ -219,6 +241,8 @@ function addObject(group, objName = "*") {
                 defaultValue = false; 
             } else if (paramSchema?.default !== undefined) {
                 defaultValue = paramSchema.default;
+            } else if (paramSchema?.type === "array") {
+                 defaultValue = [""];
             }
             model[group][objName][firstParam] = defaultValue;
         }
@@ -268,6 +292,7 @@ function renderGroups(){
     addForGroup.className = "btn btn-sm btn-outline-light";
     addForGroup.textContent = "Добавить объект";
     addForGroup.addEventListener("click", () => addObject(group));
+    
     header.appendChild(title);
     header.appendChild(addForGroup);
 
@@ -280,12 +305,12 @@ function renderGroups(){
 
       const oCard = document.createElement("div");
       oCard.className = "object-card";
-      const head = document.createElement("div");
-      head.className = "object-head";
-      const left = document.createElement("div");
-      left.style.display = "flex"; left.style.alignItems = "center"; left.style.gap = "6px";
+
+      
+      const objSelectContainer = document.createElement("div");
+      objSelectContainer.className = "object-head";
       const objSelect = document.createElement("select");
-      objSelect.className = "form-select form-select-dark"; objSelect.style.maxWidth = "260px";
+      objSelect.className = "form-select form-select-dark";
       const options = [...new Set([...OBJECT_EXAMPLES_BY_GROUP[group], objectName])]; 
       options.forEach(name=>{
         const opt = document.createElement("option");
@@ -300,132 +325,150 @@ function renderGroups(){
         delete model[group][objectName];
         repaint();
       });
-      const objTitle = document.createElement("div");
-      objTitle.className = "object-title";
-      objTitle.textContent = "Объект";
-      left.appendChild(objTitle);
-      left.appendChild(objSelect);
-      const right = document.createElement("div");
-      right.className = "object-actions";
-      const delObj = document.createElement("button");
-      delObj.className = "btn btn-sm btn-danger"; delObj.textContent = "Удалить";
-      delObj.addEventListener("click", ()=>{
-        
-        if(confirm(`Вы уверены, что хотите удалить объект "${objectName}"?`)){
-            delete model[group][objectName];
-            if(Object.keys(model[group]).length===0) delete model[group];
-            repaint();
-        }
-      });
+      objSelectContainer.appendChild(objSelect);
+
+
+      const actionsContainer = document.createElement("div");
+      actionsContainer.className = "object-actions";
       const addParam = document.createElement("button");
-      addParam.className = "btn btn-sm btn-outline-light"; addParam.textContent = "Параметр";
+      addParam.className = "btn btn-sm btn-outline-light";
+      addParam.textContent = "Параметр";
       addParam.addEventListener("click", ()=>{
         const list = PARAMS_BY_GROUP[group] || [];
         const free = list.find(p=> model[group][objectName][p]===undefined );
         if(!free){
-            alert("Все доступные параметры для этой группы уже добавлены.");
-            return;
+          alert("Все доступные параметры для этой группы уже добавлены.");
+          return;
         };
-        model[group][objectName][free] = ""; 
+        model[group][objectName][free] = "";
         repaint();
       });
-      right.appendChild(addParam);
-      right.appendChild(delObj);
-      head.appendChild(left);
-      head.appendChild(right);
+      const delObj = document.createElement("button");
+      delObj.className = "btn btn-sm btn-danger";
+      delObj.textContent = "Удалить";
+      delObj.addEventListener("click", ()=>{
+        if(confirm(`Вы уверены, что хотите удалить объект "${objectName}"?`)){
+          delete model[group][objectName];
+          if(Object.keys(model[group]).length===0) delete model[group];
+          repaint();
+        }
+      });
+      actionsContainer.appendChild(addParam);
+      actionsContainer.appendChild(delObj);
+      
 
       const pList = document.createElement("div");
       pList.className = "param-list";
       const allowedParams = new Set(PARAMS_BY_GROUP[group] || []);
       Object.keys(params).forEach(paramName=>{
         if(!allowedParams.has(paramName)) return;
-        const pill = document.createElement("div");
-        pill.className = "param-pill";
-        const nameSelect = document.createElement("select");
-        nameSelect.className = "form-select form-select-sm"; nameSelect.style.width = "160px";
-        const available = [...PARAMS_BY_GROUP[group]];
-        available.forEach(p=>{
-          const opt = document.createElement("option");
-          opt.value = p; opt.textContent = p;
-          if(p===paramName) opt.selected = true;
-          
-          if (params[p] !== undefined && p !== paramName) {
-              opt.disabled = true;
-          }
-          nameSelect.appendChild(opt);
-        });
-        nameSelect.addEventListener("change", (e)=>{
-          const newParam = e.target.value;
-          if(newParam===paramName) return;
-          model[group][objectName][newParam] = model[group][objectName][paramName];
-          delete model[group][objectName][paramName];
-          repaint();
-        });
-
         
         const paramSchema = schema[group]?.additionalProperties?.properties?.[paramName];
-        const valueWrap = document.createElement("div");
-        valueWrap.className = "param-value";
-        let inputElement;
+        const isMultiple = paramSchema?.type === "array";
 
-        if (paramSchema?.enum) {
-            inputElement = document.createElement("select");
-            inputElement.className = "form-select form-select-dark";
-            paramSchema.enum.forEach(val => {
-                const opt = document.createElement("option");
-                opt.value = val; opt.textContent = val;
-                if (String(val) === String(params[paramName])) opt.selected = true;
-                inputElement.appendChild(opt);
-            });
-            inputElement.addEventListener("change", () => {
-                model[group][objectName][paramName] = inputElement.value;
-                repaintPreviewOnly();
-            });
-        } else if (paramSchema?.type === 'boolean') {
-            valueWrap.style.minWidth = 'auto'; 
-            inputElement = document.createElement("input");
-            inputElement.type = "checkbox";
-            inputElement.className = "form-check-input";
-            inputElement.checked = !!params[paramName];
-            inputElement.addEventListener("change", () => {
-                model[group][objectName][paramName] = inputElement.checked;
-                repaintPreviewOnly();
-            });
+        const pill = document.createElement("div");
+        pill.className = "param-pill";
+
+        const paramNameSpan = document.createElement("span");
+        paramNameSpan.className = "param-name";
+        paramNameSpan.textContent = paramName;
+        
+        const valueContainer = document.createElement("div");
+        valueContainer.className = `param-value ${isMultiple ? 'multiple' : ''}`;
+
+
+        if (isMultiple) {
+             const values = params[paramName] || [""];
+             values.forEach((value, valueIndex) => {
+                 const valueItem = document.createElement("div");
+                 valueItem.className = "multiple-value-item";
+                 const input = document.createElement("input");
+                 input.type = "text";
+                 input.value = value;
+                 input.addEventListener("input", (e) => {
+                     model[group][objectName][paramName][valueIndex] = e.target.value;
+                     repaint();
+                 });
+
+                 const removeValueBtn = document.createElement("button");
+                 removeValueBtn.className = "remove-value-btn";
+                 removeValueBtn.textContent = "–";
+                 removeValueBtn.addEventListener("click", () => {
+                     model[group][objectName][paramName].splice(valueIndex, 1);
+                     if (model[group][objectName][paramName].length === 0) {
+                         delete model[group][objectName][paramName];
+                     }
+                     repaint();
+                 });
+
+                 valueItem.appendChild(input);
+                 valueItem.appendChild(removeValueBtn);
+                 valueContainer.appendChild(valueItem);
+             });
+
+             const addValueBtn = document.createElement("button");
+             addValueBtn.className = "add-value-btn";
+             addValueBtn.textContent = "+";
+             addValueBtn.addEventListener("click", () => {
+                 if (model[group][objectName][paramName] === undefined) {
+                    model[group][objectName][paramName] = [""];
+                 } else {
+                    model[group][objectName][paramName].push("");
+                 }
+                 repaint();
+             });
+             valueContainer.appendChild(addValueBtn);
+
         } else {
-            inputElement = document.createElement("input");
-            inputElement.type = "text";
-            inputElement.value = params[paramName] ?? "";
-            inputElement.placeholder = "значение…";
-            inputElement.addEventListener("input", debounce(() => {
-                model[group][objectName][paramName] = inputElement.value;
-                repaintPreviewOnly();
-            }, 300));
+            const input = document.createElement("input");
+            input.type = paramSchema?.type === 'number' ? 'number' : 'text';
+            if (paramSchema?.type === 'boolean') {
+                input.type = "checkbox";
+                input.checked = params[paramName];
+                input.addEventListener("change", (e) => {
+                    model[group][objectName][paramName] = e.target.checked;
+                    repaint();
+                });
+            } else {
+                input.value = params[paramName];
+            const debouncedRepaint = debounce(() => {
+                repaint();
+            }, 2000);
+
+            input.addEventListener("input", (e) => {
+                let value = e.target.value;
+                if (input.type === 'number') {
+                    value = parseFloat(value) || 0;
+                }
+                model[group][objectName][paramName] = value;
+                debouncedRepaint();
+            });
+
+
+            }
+            valueContainer.appendChild(input);
         }
 
-        valueWrap.appendChild(inputElement);
+        pill.appendChild(paramNameSpan);
+        pill.appendChild(valueContainer);
         
-        const remove = document.createElement("button");
-        remove.className = "param-remove"; remove.textContent = "×"; remove.title = "Удалить параметр";
-        remove.addEventListener("click", ()=>{
-           if (confirm(`Вы уверены, что хотите удалить параметр "${paramName}"?`)) {
-                delete model[group][objectName][paramName];
-                if(Object.keys(model[group][objectName]).length===0) delete model[group][objectName];
-                if(Object.keys(model[group]).length===0) delete model[group];
-                repaint();
-           }
+        const delParam = document.createElement("button");
+        delParam.className = "remove-value-btn-param";
+        delParam.textContent = "×";
+        delParam.addEventListener("click", () => {
+            delete model[group][objectName][paramName];
+            repaint();
         });
-
-        pill.appendChild(nameSelect);
-        pill.appendChild(valueWrap);
-        pill.appendChild(remove);
+        pill.appendChild(delParam);
+        
         pList.appendChild(pill);
       });
-
-      oCard.appendChild(head);
+      
+      oCard.appendChild(objSelectContainer);
+      oCard.appendChild(actionsContainer);
       oCard.appendChild(pList);
       grid.appendChild(oCard);
     });
-
     gCard.appendChild(header);
     gCard.appendChild(grid);
     groupsRoot.appendChild(gCard);
@@ -433,107 +476,70 @@ function renderGroups(){
 }
 
 
-function buildCleanJSON(){
-  const out = {};
-  ["@title","@description","@author","@version"].forEach(k=>{
-    if(model[k]) out[k]=model[k];
-  });
-  GROUP_KEYS.forEach(group=>{
-    const g = model[group];
-    if(!g) return;
-    const groupOut = {};
-    Object.keys(g).forEach(objName=>{
-      const objParams = g[objName];
-      const objOut = {};
-      Object.keys(objParams).forEach(p=>{
-        const v = objParams[p];
-        
-        if(v !== undefined && v !== null){
-          objOut[p]=v;
-        }
-      });
-      if(Object.keys(objOut).length>0){
-        groupOut[objName] = objOut;
-      }
-    });
-    if(Object.keys(groupOut).length>0){
-      out[group]=groupOut;
-    }
-  });
-  return out;
-}
-
-function repaintPreviewOnly(){
-  const json = buildCleanJSON();
-  const pretty = JSON.stringify(json, null, 2);
-  jsonPreview.textContent = pretty;
-}
-
 function repaint(){
-  renderGroups();
-  repaintPreviewOnly();
-  const pretty = JSON.stringify(buildCleanJSON(), null, 2);
-  if(cm.getValue() !== pretty){
-    const cursor = cm.getCursor();
-    cm.setValue(pretty);
-    cm.setCursor(cursor);
-  }
-}
-
-function renderAll(){
+  // синхронизация полей
   metaTitle.value = model["@title"] || "";
   metaDesc.value = model["@description"] || "";
   metaAuthor.value = model["@author"] || "";
   metaVersion.value = model["@version"] || "";
+
+  updateMetaPreview();
   renderFiles();
-  repaint();
+  renderGroups();
+
+  // создаём копию модели для вывода
+  const outputModel = JSON.parse(JSON.stringify(model));
+
+  // заменяем переносы на <br> в @description
+  if(outputModel["@description"]){
+    outputModel["@description"] = outputModel["@description"].replace(/\n/g, "<br>");
+  }
+
+  const text = JSON.stringify(outputModel, null, 2);
+  jsonPreview.textContent = text;
+  cm.setValue(text); // чтобы код тоже синхронизировался
 }
 
 
-formatBtn.addEventListener("click", ()=>{
+
+
+function renderAll(){
+  repaint();
+  
+  const text = JSON.stringify(model, null, 2);
+  cm.setValue(text);
+  
+  
+  if(modIconFile){
+    iconPreview.src = URL.createObjectURL(modIconFile);
+    iconPreview.classList.remove("d-none");
+    removeIconButton.classList.remove("d-none");
+  }
+}
+
+
+applyBtn.addEventListener("click", ()=>{
+  const text = cm.getValue();
   try{
-    const obj = JSON.parse(cm.getValue());
-    cm.setValue(JSON.stringify(obj, null, 2));
+    const obj = JSON.parse(text);
+    model = obj;
     codeError.classList.add("d-none");
+    renderAll();
+    
+    
   }catch(e){
     codeError.textContent = "Ошибка JSON: " + e.message;
     codeError.classList.remove("d-none");
   }
 });
 
-applyBtn.addEventListener("click", ()=>{
+formatBtn.addEventListener("click", ()=>{
+  const text = cm.getValue();
   try{
-    const obj = JSON.parse(cm.getValue());
+    const obj = JSON.parse(text);
+    const formatted = JSON.stringify(obj, null, 2);
+    cm.setValue(formatted);
     codeError.classList.add("d-none");
-    const nextModel = {};
-    ["@title","@description","@author","@version"].forEach(k=>{
-      if(typeof obj[k]==="string") nextModel[k]=obj[k];
-    });
-    GROUP_KEYS.forEach(group=>{
-      if(obj[group] && typeof obj[group]==="object"){
-        const gIn = obj[group];
-        const gOut = {};
-        Object.keys(gIn).forEach(objectName=>{
-          const paramsIn = gIn[objectName];
-          if(typeof paramsIn!=="object") return;
-          const objOut = {};
-          (PARAMS_BY_GROUP[group]||[]).forEach(p=>{
-            if(p in paramsIn){
-              
-              objOut[p] = paramsIn[p];
-            }
-          });
-          if(Object.keys(objOut).length>0){
-            gOut[objectName]=objOut;
-          }
-        });
-        if(Object.keys(gOut).length>0){
-          nextModel[group]=gOut;
-        }
-      }
-    });
-    model = nextModel;
-    renderAll();
   }catch(e){
     codeError.textContent = "Ошибка JSON: " + e.message;
     codeError.classList.remove("d-none");
@@ -543,23 +549,18 @@ applyBtn.addEventListener("click", ()=>{
 
 exportBtn.addEventListener("click", async ()=>{
   const zip = new JSZip();
-  const cleanJson = buildCleanJSON();
-  if(Object.keys(cleanJson).length === 0 && files.length === 0 && !modIconFile) {
-      alert("Нечего экспортировать. Добавьте мета-информацию, объекты или файлы.");
-      return;
-  }
-  zip.file("content.json", JSON.stringify(cleanJson, null, 2));
+  const text = JSON.stringify(model, null, 2);
+  zip.file("content.json", text);
   if(modIconFile){
     zip.file("icon.png", modIconFile);
   }
   files.forEach(item=>{
-    const path = `${item.folder}/${item.file.name}`;
-    zip.file(path, item.file);
+    zip.file(`${item.folder}/${item.file.name}`, item.file);
   });
-  const blob = await zip.generateAsync({type:"blob"});
+  const modName = model["@title"] || "unnamed_mod";
+  const content = await zip.generateAsync({type:"blob"});
   const a = document.createElement("a");
-  a.href = URL.createObjectURL(blob);
-  const modName = (model['@title'] || 'mod').replace(/[^a-z0-9]/gi, '_').toLowerCase();
+  a.href = URL.createObjectURL(content);
   a.download = `${modName}.zip`;
   a.click();
   URL.revokeObjectURL(a.href);
@@ -577,13 +578,14 @@ importZipInput.addEventListener("change", async (e)=>{
   modIconFile = null;
   iconPreview.classList.add("d-none");
   iconPreview.removeAttribute("src");
+  removeIconButton.classList.add("d-none");
 
   if(zip.file("content.json")){
     try{
       const text = await zip.file("content.json").async("text");
       const obj = JSON.parse(text);
-      cm.setValue(JSON.stringify(obj, null, 2));
-      applyBtn.click(); 
+      model = obj;
+      
     }catch(err){
       alert("Ошибка чтения content.json: " + err.message);
     }
@@ -597,18 +599,21 @@ importZipInput.addEventListener("change", async (e)=>{
     const url = URL.createObjectURL(modIconFile);
     iconPreview.src = url;
     iconPreview.classList.remove("d-none");
+    removeIconButton.classList.remove("d-none");
   }
+  
   const entries = Object.keys(zip.files);
   for(const path of entries){
     if(path.endsWith("/") || path==="content.json" || path==="icon.png") continue;
-    const top = path.split("/")[0];
-    if(!KNOWN_FOLDERS.includes(top)) continue;
+    const parts = path.split("/");
+    const folder = parts[0];
+    const fileName = parts.slice(1).join("/");
     const blob = await zip.file(path).async("blob");
-    const name = path.substring(path.indexOf('/') + 1);
-    if(name) { 
-        files.push({file: new File([blob], name), folder: top});
-    }
+    const file = new File([blob], fileName);
+    
+    files.push({file, folder});
   }
-  renderFiles();
-  e.target.value = "";
+  
+  renderAll();
+  e.target.value = '';
 });

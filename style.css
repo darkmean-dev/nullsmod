@@ -63,6 +63,7 @@ body{
 
 .list-group-dark .list-group-item{
   background:#0f131c; color:#ffffff; border:1px solid #273146;
+  word-break: break-all;
 }
 .list-group-dark .btn-danger{ padding: .25rem .5rem; }
 
@@ -82,11 +83,11 @@ body{
   box-shadow: inset 0 1px rgba(255,255,255,.06), 0 6px 18px rgba(35,78,168,.25);
 }
 
-
 .code-editor{
   height: 420px;
   border:1px solid #273146;
-  border-radius:12px; overflow:hidden;
+  border-radius:12px;
+  overflow:hidden;
   color: #ffffff;
 }
 
@@ -94,10 +95,10 @@ body{
   height: 100%;
   width: 100%;
 }
-.object-input-container input {
- color: #333; 
-}
 
+.CodeMirror-vscrollbar{
+  border-radius: 12px;
+}
 
 .groups-root{
   display:flex;
@@ -105,35 +106,24 @@ body{
   gap:16px;
 }
 .group-card{
-  border:1px solid var(--line);
-  border-radius:14px;
-  background:#121724;
-  padding:12px;
-  color: #ffffff;
+  border:1px solid #273146;
+  border-radius:16px;
+  padding:16px;
 }
 .group-header{
-  display:flex; align-items:center; justify-content:space-between;
-  padding:6px 8px 12px 6px;
-  border-bottom:1px dashed #2b3550;
+  text-align: center;
   margin-bottom:12px;
 }
+.group-header .group-title {
+  display: block;
+}
+.group-header .btn {
+  margin-top: 8px;
+}
 .group-title{
-  font-weight:700; letter-spacing:.3px;
-  color: #ffffff;
+  font-weight:700;
+  color: var(--accent);
 }
-.code-editor {
-    height: 420px;
-    border: 1px solid #273146;
-    border-radius: 12px;
-    overflow: auto;
-    color: #ffffff;
-    position: relative;
-}
-
-.code-editor .line-numbers {
-    display: none;
-}
-
 
 .objects-grid{
   display:flex; flex-wrap:wrap; gap:12px;
@@ -151,71 +141,178 @@ body{
   color: #ffffff;
 }
 .object-head{
-  display:flex; align-items:center; justify-content:space-between;
-  gap:8px; margin-bottom:8px;
-}
-.object-title{
-  font-weight:600; color:#ffffff;
+  margin-bottom:8px;
 }
 .object-actions{
   display:flex; align-items:center; gap:6px;
+  margin-top: 8px;
 }
-
 
 .param-list{
   display:flex; flex-wrap:wrap; gap:8px;
 }
 .param-pill{
   background: var(--pill);
-  color: #ffffff;
+  color: var(--pill-text);
   border:1px solid #31405a;
-  border-radius:999px;
-  padding:6px 10px;
+  border-radius:12px;
+  padding:8px;
   display:inline-flex;
-  align-items:center;
-  gap:8px;
+  flex-direction: column;
+  align-items:flex-start;
+  gap:4px;
+  width: 100%;
+  position: relative;
 }
 .param-pill .param-name{
   font-weight:600; opacity:.95;
-  color: #ffffff;
+  color: #000;
 }
 .param-pill .param-value{
   min-width: 140px;
-  color: #ffffff;
+  color: #000;
+  width: 100%;
 }
 .param-pill input{
   background: transparent;
-  border: none;
-  color: #2b3350;
+  border:none;
+  outline:none;
+  color: #000;
+  width: 100%;
+  padding-left: 0;
+  padding-right: 0;
+}
+.param-pill input:focus{
   outline: none;
-  width: 160px;
 }
-.param-pill .form-select {
-  
-  background: transparent;
-  
-  
-  border: 1px solid #5a6488; 
-  border-radius: 4px;       
-  color: #2b3350;           
-  
-  
-  -webkit-appearance: menulist;
-  -moz-appearance: menulist;
-  appearance: menulist; 
+.param-pill .param-value.multiple{
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
 }
-.param-remove{
-  border:none; background:#2b3550; color:#ffffff;
-  border-radius:999px; padding:4px 8px; cursor:pointer;
+.param-pill .multiple-value-item {
+  display: flex;
+  align-items: center;
+  gap: 4px;
 }
-.param-remove:hover{ background:#394772; }
+.param-pill .multiple-value-item input {
+  flex-grow: 1;
+}
 
+.add-value-btn{
+  background: var(--accent);
+  color: #ffffff;
+  border: none;
+  border-radius: 50%;
+  width: 24px;
+  height: 24px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-weight: bold;
+}
+.remove-value-btn{
+  background: #f44336;
+  color: #ffffff;
+  border: none;
+  border-radius: 50%;
+  width: 20px;
+  height: 20px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 10px;
+  font-weight: bold;
+}
+.remove-value-btn:hover {
+  background: #d32f2f;
+}
+
+.remove-value-btn-param {
+  background: #f44336;
+  color: #ffffff;
+  border: none;
+  border-radius: 50%;
+  width: 20px;
+  height: 20px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 10px;
+  font-weight: bold;
+  opacity: 0.7;
+  position: absolute;
+  top: 8px;
+  right: 8px;
+}
+
+.remove-value-btn-param:hover {
+  opacity: 1;
+  background: #d32f2f;
+}
 
 .btn.glow{
-  box-shadow: 0 8px 24px rgba(30,111,255,.25);
+  box-shadow: 0 4px 10px rgba(0,0,0,0.2), 0 0 20px rgba(106, 164, 255, 0.4);
+  transition: all .2s ease;
+}
+.btn.glow:hover{
+  transform: translateY(-2px);
+  box-shadow: 0 6px 15px rgba(0,0,0,0.3), 0 0 30px rgba(106, 164, 255, 0.6);
 }
 
+.meta-preview{
+  background: linear-gradient(180deg, var(--card), var(--card-2));
+  border: 1px solid var(--line);
+  border-radius: 16px;
+  padding: 16px;
+  margin-top: 16px;
+}
 
-@media (max-width: 768px){
-  .object-card{ flex: 1 1 90%; min-width:unset; }
+.preview-title{
+  color: var(--accent);
+  font-size: 1.5rem;
+  font-weight: bold;
+}
+
+.preview-description{
+  color: var(--muted);
+  font-size: 1rem;
+  white-space: pre-line;
+}
+
+.preview-author {
+  color: var(--muted);
+  font-size: 0.9rem;
+}
+
+.object-actions {
+  display: flex;
+  justify-content: center;  /* по горизонтали по центру */
+  gap: 10px;                /* расстояние между кнопками */
+  margin: 5px 0;
+}
+
+.object-actions button {
+  border-radius: 8px;       /* закругление */
+  padding: 4px 10px;        /* немного больше внутреннего отступа */
+}
+
+/* Все input и textarea внутри object-card */
+.object-card input,
+.object-card textarea {
+  border: 1px solid #888;     /* видимая граница */
+  border-radius: 6px;         /* округление */
+  padding: 4px 8px;           /* внутренние отступы */
+  width: 100%;                /* чтобы занимали ширину контейнера */
+  box-sizing: border-box;     /* чтобы padding не ломал ширину */
+  background-color: #1b2030;  /* если тёмный фон */
+  color: #fff;                /* текст на тёмном фоне */
+}
+
+/* При фокусе подсветка */
+.object-card input:focus,
+.object-card textarea:focus {
+  outline: none;
+  border-color: #00aaff;
+  box-shadow: 0 0 4px #00aaff;
 }
