@@ -5,132 +5,135 @@
   <meta name="viewport" content="width=device-width,initial-scale=1" />
   <title>Генератор модов</title>
 
-  <!-- Bootstrap 5 -->
   <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
 
-  <!-- Google Sans -->
   <link href="https://fonts.googleapis.com/css2?family=Google+Sans:wght@400;500;700&display=swap" rel="stylesheet">
 
-  <!-- CodeMirror -->
   <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/codemirror@5.65.16/lib/codemirror.min.css">
   <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/codemirror@5.65.16/theme/material-darker.min.css">
   <script src="https://cdn.jsdelivr.net/npm/codemirror@5.65.16/lib/codemirror.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/codemirror@5.65.16/mode/javascript/javascript.js"></script>
 
-  <!-- JSZip -->
   <script src="https://cdn.jsdelivr.net/npm/jszip@3.10.1/dist/jszip.min.js"></script>
 
-  <link rel="stylesheet" href="style.css?v=1.1">
-  <script type="module" src="script.js?v=1.1"></script>
+  <link rel="stylesheet" href="style.css?v=1.2.3" />
 </head>
-<body class="bg-dark">
-  <div class="container my-5">
-    <h1 class="text-center section-title">Генератор модов для Nulls' Royale</h1>
+<body>
+  <div class="container py-4">
 
-    <div class="card soft">
-      <div class="card-header border-0">
-        <ul class="nav nav-tabs card-header-tabs" id="main-tabs" role="tablist">
-          <li class="nav-item">
-            <button class="nav-link active" id="visual-tab" data-bs-toggle="tab" data-bs-target="#visual-pane" type="button" role="tab" aria-controls="visual-pane" aria-selected="true">Визуальный редактор</button>
-          </li>
-          <li class="nav-item">
-            <button class="nav-link" id="code-tab" data-bs-toggle="tab" data-bs-target="#code-pane" type="button" role="tab" aria-controls="code-pane" aria-selected="false">Редактор JSON</button>
-          </li>
-        </ul>
-      </div>
-    </div>
+    <header class="mb-4 text-center">
+      <h1 class="display-6 fw-bold">Генератор модов</h1>
+      <p class="text-muted-2 mb-0">Всё, что нужно мододелу — красиво и быстро ✨</p>
+    </header>
 
-    <div class="tab-content mt-3">
+    <ul class="nav nav-pills frosted mb-3" id="mainTabs" role="tablist">
+      <li class="nav-item" role="presentation">
+        <button class="nav-link active" id="visual-tab" data-bs-toggle="pill" data-bs-target="#visual-pane" type="button" role="tab">Визуально</button>
+      </li>
+      <li class="nav-item" role="presentation">
+        <button class="nav-link" id="code-tab" data-bs-toggle="pill" data-bs-target="#code-pane" type="button" role="tab">Код (.json)</button>
+      </li>
+    </ul>
 
-      <!-- VISUAL TAB -->
+    <div class="tab-content" id="tabContent">
+
       <div class="tab-pane fade show active" id="visual-pane" role="tabpanel" aria-labelledby="visual-tab">
-        <div class="row g-4">
+        <div class="row g-3">
           <div class="col-12 col-lg-7">
-            <div class="card soft h-100">
+            <div class="card soft mb-3">
               <div class="card-body">
-                <h5 class="section-title">Метаданные мода</h5>
+                <h5 class="section-title">Предпросмотр JSON</h5>
+                <div id="meta-preview" class="meta-preview mb-3 d-none">
+                    <h5 id="preview-title" class="preview-title"></h5>
+                    <p id="preview-description" class="preview-description"></p>
+                    <p id="preview-author" class="preview-author"></p>
+                </div>
+                <pre class="preview-pre"><code id="json-preview" class="language-json"></code></pre>
+              </div>
+            </div>
 
-                <div class="frosted p-3 mb-3">
-                  <div class="mb-3">
-                    <label for="language-select" class="form-label">Язык</label>
-                    <select id="language-select" class="form-select"></select>
-                  </div>
-                  <div class="mb-3">
-                    <label for="meta-title" class="form-label">Название мода</label>
-                    <input type="text" class="form-control" id="meta-title" placeholder="Название мода">
-                  </div>
-                  <div class="mb-3">
-                    <label for="meta-description" class="form-label">Описание</label>
-                    <textarea class="form-control" id="meta-description" rows="3" placeholder="Описание мода"></textarea>
-                  </div>
-                  <div class="row g-3 mb-3">
-                    <div class="col-sm">
-                      <label for="meta-author" class="form-label">Автор</label>
-                      <input type="text" class="form-control" id="meta-author" placeholder="Автор">
-                    </div>
-                    <div class="col-sm">
-                      <label for="meta-version" class="form-label">Версия</label>
-                      <input type="text" class="form-control" id="meta-version" placeholder="1.0.0">
-                    </div>
-                  </div>
-                  <div class="mb-3">
-                    <label for="mod-icon" class="form-label">Иконка мода (PNG, ≤640x640)</label>
-                    <div class="d-flex align-items-center gap-3">
-                      <input class="form-control" type="file" id="mod-icon" accept="image/png">
-                      <img id="icon-preview" class="d-none rounded-2 border" src="" alt="Mod icon preview" style="max-width: 64px; max-height: 64px;">
-                      <button id="remove-icon-btn" class="btn btn-danger btn-sm d-none">
-                        <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="currentColor" class="bi bi-x-lg" viewBox="0 0 16 16">
-                          <path d="M2.146 2.854a.5.5 0 1 1 .708-.708L8 7.293l5.146-5.147a.5.5 0 0 1 .708.708L8.707 8l5.147 5.146a.5.5 0 0 1-.708.708L8 8.707l-5.146 5.147a.5.5 0 0 1-.708-.708L7.293 8z"/>
-                        </svg>
-                      </button>
-                    </div>
+            <div class="card soft mb-3">
+              <div class="card-body">
+                <div class="d-flex justify-content-between align-items-center mb-3">
+                  <h5 class="section-title mb-0">Мета-информация</h5>
+                  <div>
+                    <label for="language-select" class="form-label subtle mb-0">Язык</label>
+                    <select id="language-select" class="form-select form-select-sm form-select-dark d-inline-block w-auto"></select>
                   </div>
                 </div>
-
-                <div class="meta-preview d-none" id="meta-preview">
-                  <div class="preview-title" id="preview-title">Название мода</div>
-                  <div class="preview-description" id="preview-description">Описание мода</div>
-                  <div class="preview-author" id="preview-author">Автор: Не указан</div>
+                <div class="row g-2">
+                  <div class="col-12 col-md-6">
+                    <label class="form-label subtle">@title</label>
+                    <input type="text" id="meta-title" class="form-control form-control-dark" placeholder="Название мода">
+                  </div>
+                  <div class="col-12 col-md-6">
+                    <label class="form-label subtle">@author</label>
+                    <input type="text" id="meta-author" class="form-control form-control-dark" placeholder="Автор">
+                  </div>
+                  <div class="col-12">
+                    <label class="form-label subtle">@description</label>
+                    <textarea id="meta-description" class="form-control form-control-dark" rows="3" placeholder="Описание мода"></textarea>
+                  </div>
+                  <div class="col-12 col-md-4">
+                    <label class="form-label subtle">@version</label>
+                    <input type="text" id="meta-version" class="form-control form-control-dark" placeholder="1.0.0">
+                  </div>
                 </div>
+              </div>
+            </div>
 
-                <hr>
+            <div class="card soft mb-3">
+              <div class="card-body d-flex align-items-center flex-column flex-md-row gap-3">
+                <div class="flex-shrink-0">
+                  <img id="icon-preview" class="icon-preview d-none" src="" alt="Иконка мода">
+                </div>
+                <div class="flex-grow-1">
+                  <h5 class="section-title">Иконка мода</h5>
+                  <p class="text-muted-2 small">
+                    Размер: 640x640, Формат: .png
+                  </p>
+                  <label for="mod-icon" class="btn btn-outline-light d-inline-block">
+                    Загрузить иконку
+                  </label>
+                  <input type="file" id="mod-icon" class="d-none" accept="image/png">
+                  <button id="remove-icon-btn" class="btn btn-sm btn-outline-danger d-none">Удалить</button>
+                </div>
+              </div>
+            </div>
 
+            <div class="card soft mb-3">
+              <div class="card-body">
                 <h5 class="section-title">Добавление файлов</h5>
-                <div class="frosted p-3 mb-3">
-                  <div class="row g-3">
-                    <div class="col-sm">
-                      <label for="folder-select" class="form-label">Папка</label>
-                      <select id="folder-select" class="form-select"></select>
-                    </div>
-                    <div class="col-sm">
-                      <label for="file-input" class="form-label">Файлы</label>
-                      <input class="form-control" type="file" id="file-input" multiple>
-                    </div>
-                  </div>
-                  <ul class="list-group list-group-flush mt-3" id="files-list"></ul>
+                <div class="input-group mb-3">
+                  <label class="input-group-text">Папка</label>
+                  <select id="folder-select" class="form-select form-select-dark"></select>
                 </div>
+                <label for="file-input" class="btn btn-primary glow w-100">
+                  Выбрать файлы
+                </label>
+                <input type="file" id="file-input" class="d-none" multiple>
+                <ul id="files-list" class="list-group list-group-dark mt-3">
+                  </ul>
+              </div>
+            </div>
 
-                <hr>
-
-                <h5 class="section-title">Параметры объектов</h5>
-                <div class="frosted p-3">
-                  <div class="d-flex gap-2">
-                    <div class="custom-select-container flex-grow-1">
-                      <input type="text" class="form-control custom-select-input" id="add-object-group" placeholder="Найти группу..." />
-                      <div class="options-container" id="add-object-group-options"></div>
-                    </div>
-                    <button id="add-object-btn" class="btn btn-primary glow">Добавить</button>
+            <div class="card soft mb-3">
+              <div class="card-body">
+                <h5 class="section-title">Редактор объектов</h5>
+                <div class="input-group mb-3">
+                  <div class="custom-select-container">
+                    <input type="text" id="add-object-group" class="form-control form-control-dark custom-select-input" placeholder="Поиск групп...">
+                    <div class="options-container" id="add-object-group-options"></div>
                   </div>
+                  <button id="add-object-btn" class="btn btn-primary glow">Добавить</button>
                 </div>
-                <div id="groups-root" class="mt-3">
-                  <!-- Groups and their objects will be rendered here -->
-                </div>
+                <div id="groups-root" class="groups-root">
+                  </div>
               </div>
             </div>
           </div>
 
           <div class="col-12 col-lg-5">
-            <!-- Export / Import -->
             <div class="d-flex flex-wrap gap-2 justify-content-end justify-content-lg-start">
               <button id="export-btn" class="btn btn-success glow">Экспорт ZIP</button>
               <button id="import-btn" class="btn btn-warning text-dark glow">Импорт ZIP</button>
@@ -140,7 +143,6 @@
         </div>
       </div>
 
-      <!-- CODE TAB -->
       <div class="tab-pane fade" id="code-pane" role="tabpanel" aria-labelledby="code-tab">
         <div class="card soft">
           <div class="card-body">
@@ -158,13 +160,10 @@
     </div>
   </div>
 
-  <!-- Footer Text -->
-  <div class="text-center text-muted-2 mt-4 pb-3">
-    Версия 1.2.2<br>
-    От <a href="https://t.me/s_darkmean" class="text-white-50 text-decoration-none">darkmean</a>
-  </div>
-
-  <!-- Bootstrap JS -->
   <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
+  <script src="script.js?v=1.2.3"></script>
+  <div class="container text-center py-3">
+      <p class="text-muted-2 small mb-0">Версия 1.2.3<br>От <a href='https://t.me/s_darkmean'>darkmean</a></p>
+  </div>
 </body>
 </html>
