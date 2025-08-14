@@ -488,6 +488,34 @@ function populateFolderSelect() {
         folderSelect.appendChild(opt);
     });
 }
+function createParamDropdown(groupKey, objectCard) {
+    const params = PARAMS_BY_GROUP[groupKey];
+    if (!params || params.length === 0) return null;
+
+    const dropdownHtml = `
+        <div class="dropdown add-param-dropdown">
+            <button class="btn btn-outline-light btn-sm dropdown-toggle" type="button" data-bs-toggle="dropdown" aria-expanded="false">
+                Добавить параметр
+            </button>
+            <ul class="dropdown-menu">
+                ${params.map(param => `<li class="dropdown-item" data-param-key="${param}">${param}</li>`).join('')}
+            </ul>
+        </div>
+    `;
+
+    const tempDiv = document.createElement('div');
+    tempDiv.innerHTML = dropdownHtml.trim();
+    const dropdown = tempDiv.firstChild;
+
+    dropdown.querySelectorAll('.dropdown-item').forEach(item => {
+        item.addEventListener('click', (e) => {
+            const paramKey = e.target.getAttribute('data-param-key');
+            addParamToObject(objectCard, groupKey, paramKey);
+        });
+    });
+
+    return dropdown;
+}
 
 fileInput.addEventListener("change", e => {
     const folder = folderSelect.value || KNOWN_FOLDERS[0];
@@ -597,6 +625,13 @@ document.addEventListener("click", (event) => {
         const inputElement = container.previousElementSibling;
         if (inputElement && !inputElement.contains(event.target) && !container.contains(event.target)) {
             toggleDropdown(container, false);
+        }
+    });
+
+    // Hide any open param-choices lists when clicking outside
+    document.querySelectorAll('.param-choices').forEach(pc => {
+        if (!pc.contains(event.target) && !pc._ownerButton?.contains(event.target)) {
+            pc.style.display = 'none';
         }
     });
 });
@@ -726,19 +761,30 @@ function renderGroups() {
             addParam.className = "btn btn-sm btn-outline-light";
             addParam.textContent = "Параметр";
 
-            const availableParamsToAdd = PARAMS_BY_GROUP[group].filter(p => !Object.keys(params).includes(p));
-            if (availableParamsToAdd.length === 0) addParam.disabled = true;
-
-            addParam.addEventListener("click", () => {
-                if (availableParamsToAdd.length > 0) {
-                    const paramName = prompt("Выберите параметр:\n" + availableParamsToAdd.join("\n"), availableParamsToAdd[0]);
-                    if (paramName && availableParamsToAdd.includes(paramName)) {
-                        model[group][objectName][paramName] = "";
-                        repaint();
-                        autoSave();
-                    }
-                }
+            // popup-style scrollable list (like options-container)
+            const paramChoices = document.createElement('div');
+            paramChoices.className = 'param-choices';
+            Object.assign(paramChoices.style, {
+                display: 'none',
+                position: 'absolute',
+                zIndex: 60,
+                right: '0px',
+                top: 'calc(100% + 8px)',
+                minWidth: '220px',
+                maxHeight: '220px',
+                overflowY: 'auto',
+                background: 'var(--card)',
+                border: '1px solid var(--line)',
+                borderRadius: '8px',
+                padding: '6px',
+                boxShadow: '0 8px 24px rgba(0,0,0,0.4)'
             });
+
+            // Mark owner so global click handler can detect outside clicks
+            paramChoices._ownerButton = addParam;
+
+            // Ensure actions container is positioning context for absolute popup
+            actionsContainer.style.position = 'relative';
 
             const delObj = document.createElement("button");
             delObj.className = "btn btn-sm btn-danger";
@@ -754,6 +800,58 @@ function renderGroups() {
 
             actionsContainer.appendChild(addParam);
             actionsContainer.appendChild(delObj);
+            actionsContainer.appendChild(paramChoices);
+
+            // When clicking the addParam button - toggle the param choices popup
+            addParam.addEventListener('click', (e) => {
+                e.stopPropagation();
+
+                // compute available params at the time of opening
+                const availableParamsToAdd = PARAMS_BY_GROUP[group].filter(p => !Object.keys(model[group][objectName] || {}).includes(p));
+
+                // clear previous content
+                paramChoices.innerHTML = '';
+
+                if (availableParamsToAdd.length === 0) {
+                    const li = document.createElement('div');
+                    li.className = 'option-item text-muted-2';
+                    li.textContent = 'Нет доступных параметров';
+                    paramChoices.appendChild(li);
+                    paramChoices.style.display = 'block';
+                    return;
+                }
+
+                availableParamsToAdd.forEach(paramName => {
+                    const div = document.createElement('div');
+                    div.className = 'option-item';
+                    div.textContent = paramName;
+                    div.style.padding = '8px 10px';
+                    div.style.cursor = 'pointer';
+                    div.style.borderRadius = '6px';
+                    div.addEventListener('click', (ev) => {
+                        ev.stopPropagation();
+                        const paramSchema = schema[group]?.additionalProperties?.properties?.[paramName];
+                        let defaultValue = "";
+                        if (paramSchema?.type === 'boolean') {
+                            defaultValue = false;
+                        } else if (paramSchema?.default !== undefined) {
+                            defaultValue = paramSchema.default;
+                        } else if (paramSchema?.type === "array") {
+                            defaultValue = [""];
+                        }
+                        if (!model[group]) model[group] = {};
+                        if (!model[group][objectName]) model[group][objectName] = {};
+                        model[group][objectName][paramName] = defaultValue;
+                        paramChoices.style.display = 'none';
+                        repaint();
+                        autoSave();
+                    });
+                    paramChoices.appendChild(div);
+                });
+
+                // toggle visibility
+                paramChoices.style.display = paramChoices.style.display === 'block' ? 'none' : 'block';
+            });
 
             const pList = document.createElement("div");
             pList.className = "param-list";
@@ -970,38 +1068,42 @@ importZipInput.addEventListener("change", async (e) => {
             };
         }
 
-        zip.folder("data").forEach((relativePath, zipEntry) => {
-            if (!zipEntry.dir) {
+        // --- Corrected logic for iterating through zip files ---
+        zip.forEach(async (relativePath, zipEntry) => {
+            if (!zipEntry.dir && relativePath !== "content.json" && relativePath !== "icon.png") {
                 const parts = relativePath.split('/');
                 const folder = parts[0];
                 const fileName = parts[1];
                 if (KNOWN_FOLDERS.includes(folder)) {
-                    zipEntry.async("blob").then(blob => {
-                        const fileObj = new File([blob], fileName);
-                        newFiles.push({
-                            file: fileObj,
-                            folder: folder
-                        });
+                    const blob = await zipEntry.async("blob");
+                    const fileObj = new File([blob], fileName);
+                    newFiles.push({
+                        file: fileObj,
+                        folder: folder
                     });
                 }
             }
         });
 
-        model = newModel;
-        files = newFiles;
-        modIconFile = newModIconFile;
-        loadMeta(model);
-        
-        await clearIndexedDb();
-        if (modIconFile) await saveFileToDb(modIconFile, 'modIcon', null);
-        for (const f of files) {
-            await saveFileToDb(f.file, 'modFile', f.folder);
-        }
+        // Small delay to ensure all files are processed before re-rendering
+        setTimeout(async () => {
+            model = newModel;
+            files = newFiles;
+            modIconFile = newModIconFile;
+            loadMeta(model);
+            
+            await clearIndexedDb();
+            if (modIconFile) await saveFileToDb(modIconFile, 'modIcon', null);
+            for (const f of files) {
+                await saveFileToDb(f.file, 'modFile', f.folder);
+            }
 
-        repaint();
-        autoSave();
+            repaint();
+            autoSave();
 
-        showAlert("Мод успешно импортирован!");
+            showAlert("Мод успешно импортирован!");
+        }, 500);
+
     } catch (error) {
         console.error("Error importing ZIP:", error);
         showAlert("Не удалось импортировать ZIP-файл. Пожалуйста, проверьте формат файла.");

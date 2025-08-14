@@ -494,3 +494,19 @@ color: #c6c8d1;
 .custom-modal-footer {
 border-top: 1px solid #343a40;
 }
+
+.d-flex.gap-2 {
+  display: flex;
+  align-items: stretch;  /* input и кнопка одинаковой высоты */
+  gap: 0.5rem;           /* расстояние между input и кнопкой */
+  width: 100%;
+}
+
+.custom-select-container {
+  flex-grow: 1;           /* input растягивается на всё доступное место */
+}
+
+#add-object-btn {
+  flex-shrink: 0;         /* кнопка не сжимается */
+  min-width: 120px;       /* минимальная ширина кнопки */
+}
