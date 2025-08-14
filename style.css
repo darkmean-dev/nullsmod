@@ -55,6 +55,12 @@ body{
   background:#0f131c;
 }
 
+.form-control-dark.is-invalid,
+.form-select-dark.is-invalid{
+  border-color: #ffc107;
+  box-shadow: 0 0 0 0.2rem rgba(255,193,7,.25);
+}
+
 .icon-preview{
   width:150px; height:150px; object-fit:cover;
   border:1px solid var(--line); border-radius:12px;
@@ -152,9 +158,9 @@ body{
   display:flex; flex-wrap:wrap; gap:8px;
 }
 .param-pill{
-  background: var(--pill);
-  color: var(--pill-text);
-  border:1px solid #31405a;
+  background: var(--card-2);
+  color: #ffffff;
+  border:1px solid var(--line);
   border-radius:12px;
   padding:8px;
   display:inline-flex;
@@ -166,24 +172,30 @@ body{
 }
 .param-pill .param-name{
   font-weight:600; opacity:.95;
-  color: #000;
+  color: var(--accent);
 }
 .param-pill .param-value{
   min-width: 140px;
-  color: #000;
+  color: #ffffff;
   width: 100%;
 }
 .param-pill input{
-  background: transparent;
-  border:none;
+  background: var(--card);
+  border:1px solid var(--line);
+  border-radius:6px;
   outline:none;
-  color: #000;
+  color: #ffffff;
   width: 100%;
-  padding-left: 0;
-  padding-right: 0;
+  padding: 4px 8px;
 }
 .param-pill input:focus{
   outline: none;
+  border-color: var(--accent);
+  box-shadow: 0 0 4px var(--accent);
+}
+.param-pill input.is-invalid {
+  border-color: #ffc107;
+  box-shadow: 0 0 4px #ffc107;
 }
 .param-pill .param-value.multiple{
   display: flex;
@@ -298,8 +310,10 @@ body{
 }
 
 /* Все input и textarea внутри object-card */
-.object-card input,
-.object-card textarea {
+.object-card input[type=text],
+.object-card input[type=number],
+.object-card textarea,
+.object-card .form-select-dark {
   border: 1px solid #888;     /* видимая граница */
   border-radius: 6px;         /* округление */
   padding: 4px 8px;           /* внутренние отступы */
@@ -310,9 +324,95 @@ body{
 }
 
 /* При фокусе подсветка */
-.object-card input:focus,
+.object-card input[type=text]:focus,
+.object-card input[type=number]:focus,
 .object-card textarea:focus {
   outline: none;
   border-color: #00aaff;
   box-shadow: 0 0 4px #00aaff;
+}
+
+
+/* Custom Select Styles */
+.custom-select-container {
+    position: relative;
+    width: 100%;
+}
+
+.custom-select-input {
+    width: 100%;
+    padding-right: 30px !important;
+}
+
+.options-container {
+    position: absolute;
+    top: 100%;
+    left: 0;
+    right: 0;
+    z-index: 10;
+    background: var(--card);
+    border: 1px solid var(--line);
+    border-radius: 6px;
+    margin-top: 4px;
+    max-height: 200px;
+    overflow-y: auto;
+    display: none;
+    padding: 4px;
+}
+
+.options-container .option-item {
+    padding: 8px 12px;
+    cursor: pointer;
+    color: #ffffff;
+    border-radius: 4px;
+}
+
+.options-container .option-item:hover,
+.options-container .option-item.selected {
+    background: var(--accent);
+    color: #0f1115;
+}
+
+/* Изменение для .object-head, чтобы вместить новую структуру */
+.object-head {
+    position: relative;
+}
+
+/* Изменения для param-name для поддержки поиска */
+.param-name-container {
+    position: relative;
+    width: 100%;
+}
+.param-name-container .param-name-input {
+    background: transparent;
+    border: none;
+    color: var(--accent);
+    font-weight: 600;
+    padding: 0;
+    width: 100%;
+}
+.param-name-options {
+    position: absolute;
+    top: 100%;
+    left: -8px;
+    right: -8px;
+    z-index: 10;
+    background: var(--card);
+    border: 1px solid var(--line);
+    border-radius: 6px;
+    margin-top: 4px;
+    max-height: 200px;
+    overflow-y: auto;
+    display: none;
+    padding: 4px;
+}
+.param-name-options .option-item {
+    padding: 8px 12px;
+    cursor: pointer;
+    color: #ffffff;
+    border-radius: 4px;
+}
+.param-name-options .option-item:hover {
+    background: var(--accent);
+    color: #0f1115;
 }
