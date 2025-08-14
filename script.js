@@ -51,7 +51,12 @@ const codeError = document.getElementById("code-error");
 const mainTabs = new bootstrap.Tab(document.getElementById('visual-tab'));
 const codeTab = document.getElementById('code-tab');
 
-// Custom Modal for alerts and confirms
+const resetDataBtn = document.getElementById("reset-data-btn");
+
+const DB_NAME = 'mod-generator-db';
+const DB_VERSION = 1;
+const STORE_NAME = 'files';
+
 function createModal(title, message, isConfirm, onConfirm) {
     const modalId = `custom-modal-${Math.random().toString(36).substr(2, 9)}`;
     const modalHtml = `
@@ -108,13 +113,12 @@ let cm = CodeMirror(document.getElementById("editor"), {
         json: true
     },
     theme: "material-darker",
-    lineNumbers: false,
+    lineNumbers: true,
     tabSize: 2,
     indentUnit: 2,
     lineWrapping: true,
 });
 
-// Utility function to debounce function calls
 const debounce = (fn, ms = 400) => {
     let t;
     return (...args) => {
@@ -153,6 +157,122 @@ function getObjectKeyByValue(obj, value) {
     }
     return null;
 }
+
+// =========================================================================
+// IndexedDB and localStorage Functions
+// =========================================================================
+
+function openDatabase() {
+    return new Promise((resolve, reject) => {
+        const request = indexedDB.open(DB_NAME, DB_VERSION);
+        request.onerror = (event) => reject(event.target.error);
+        request.onsuccess = (event) => resolve(event.target.result);
+        request.onupgradeneeded = (event) => {
+            const db = event.target.result;
+            if (!db.objectStoreNames.contains(STORE_NAME)) {
+                db.createObjectStore(STORE_NAME, { keyPath: 'id', autoIncrement: true });
+            }
+        };
+    });
+}
+
+async function saveFileToDb(fileObject, type, folder) {
+    try {
+        const db = await openDatabase();
+        const tx = db.transaction(STORE_NAME, 'readwrite');
+        const store = tx.objectStore(STORE_NAME);
+        const fileData = {
+            name: fileObject.name,
+            file: fileObject,
+            type: type, // 'modIcon' or 'modFile'
+            folder: folder || null,
+        };
+        store.put(fileData);
+        await tx.complete;
+    } catch (e) {
+        console.error("Failed to save file to IndexedDB:", e);
+    }
+}
+
+async function getFilesFromDb() {
+    try {
+        const db = await openDatabase();
+        const tx = db.transaction(STORE_NAME, 'readonly');
+        const store = tx.objectStore(STORE_NAME);
+        const allFiles = await store.getAll();
+        await tx.complete;
+        return allFiles;
+    } catch (e) {
+        console.error("Failed to get files from IndexedDB:", e);
+        return [];
+    }
+}
+
+async function clearIndexedDb() {
+    try {
+        const db = await openDatabase();
+        const tx = db.transaction(STORE_NAME, 'readwrite');
+        const store = tx.objectStore(STORE_NAME);
+        store.clear();
+        await tx.complete;
+    } catch (e) {
+        console.error("Failed to clear IndexedDB:", e);
+    }
+}
+
+function saveModelToLocalStorage() {
+    const data = {
+        model,
+        currentLanguage,
+    };
+    localStorage.setItem('modGeneratorData', JSON.stringify(data));
+    console.log("Auto-saved model to localStorage.");
+}
+
+async function loadModelFromLocalStorage() {
+    // Load model data from localStorage
+    const storedData = localStorage.getItem('modGeneratorData');
+    if (storedData) {
+        try {
+            const data = JSON.parse(storedData);
+            model = data.model;
+            currentLanguage = data.currentLanguage;
+            showAlert("Данные успешно восстановлены из последней сессии.");
+        } catch (e) {
+            console.error("Failed to load data from localStorage:", e);
+            showAlert("Не удалось загрузить данные из последней сессии.");
+        }
+    }
+
+    // Load files from IndexedDB
+    const storedFiles = await getFilesFromDb();
+    if (storedFiles.length > 0) {
+        modIconFile = storedFiles.find(f => f.type === 'modIcon')?.file || null;
+        files = storedFiles.filter(f => f.type === 'modFile').map(f => ({ file: f.file, folder: f.folder }));
+
+        if (modIconFile) {
+            iconPreview.src = URL.createObjectURL(modIconFile);
+            iconPreview.classList.remove("d-none");
+            removeIconButton.classList.remove("d-none");
+        }
+        renderFiles();
+    }
+}
+
+const autoSave = debounce(() => {
+    saveModelToLocalStorage();
+}, 5000); // Auto-save model every 5 seconds
+
+function resetDataAndReload() {
+    showConfirm("Вы уверены, что хотите сбросить все данные? Это действие необратимо.", "Сброс данных", async () => {
+        localStorage.clear();
+        await clearIndexedDb();
+        window.location.reload();
+    });
+}
+// =========================================================================
+// End of IndexedDB and localStorage functions
+// =========================================================================
 
 const updateCodeMirror = debounce(() => {
     const text = cm.getValue();
@@ -223,7 +343,22 @@ function generateJson() {
         populateFolderSelect();
         createSearchableDropdown(addObjectGroupInput, addObjectGroupOptions, GROUP_KEYS, addObjectGroupInput.value);
         populateLanguageSelect();
+        
+        await loadModelFromLocalStorage();
         renderAll();
+
+        if ('serviceWorker' in navigator) {
+            window.addEventListener('load', () => {
+                navigator.serviceWorker.register('/service-worker.js')
+                    .then(registration => {
+                        console.log('Service Worker registered with scope:', registration.scope);
+                    })
+                    .catch(error => {
+                        console.log('Service Worker registration failed:', error);
+                    });
+            });
+        }
+
     } catch (error) {
         console.error("Failed to load schema:", error);
         showAlert("Не удалось загрузить схему модов. Некоторые функции могут не работать.");
@@ -244,6 +379,7 @@ function populateLanguageSelect() {
 languageSelect.addEventListener("change", (e) => {
     currentLanguage = e.target.value;
     repaint();
+    autoSave();
 });
 
 
@@ -262,6 +398,7 @@ const debouncedUpdateJson = debounce(() => {
 
     jsonPreview.textContent = JSON.stringify(outputModel, null, 2);
     cm.setValue(JSON.stringify(model, null, 2));
+    autoSave();
 }, 500);
 
 metaTitle.addEventListener("input", (e) => {
@@ -328,6 +465,7 @@ iconInput.addEventListener("change", e => {
             iconPreview.src = img.src;
             iconPreview.classList.remove("d-none");
             removeIconButton.classList.remove("d-none");
+            saveFileToDb(modIconFile, 'modIcon', null);
         }
     };
 });
@@ -337,7 +475,8 @@ removeIconButton.addEventListener("click", () => {
     iconPreview.classList.add("d-none");
     iconPreview.removeAttribute("src");
     modIconFile = null;
-    removeIconButton.classList.add("d-none");
+    saveFileToDb(null, 'modIcon', null);
+    autoSave();
 });
 
 function populateFolderSelect() {
@@ -358,10 +497,12 @@ fileInput.addEventListener("change", e => {
                 file: f,
                 folder
             });
+            saveFileToDb(f, 'modFile', folder);
         }
     });
     e.target.value = "";
     renderFiles();
+    autoSave();
 });
 
 function renderFiles() {
@@ -381,15 +522,26 @@ function renderFiles() {
         del.className = "btn btn-sm btn-danger";
         del.textContent = "Удалить";
         del.addEventListener("click", () => {
+            const fileId = files.find(f => f.file.name === item.file.name)?.id;
+            if (fileId) {
+                // Here's an example of how to delete a single file. For now, we'll simplify.
+                // A full implementation would need to track file IDs.
+                // Let's just update the entire DB for simplicity in this example.
+            }
             files.splice(idx, 1);
-            renderFiles();
+            // Re-save all files to DB
+            clearIndexedDb().then(() => {
+                if (modIconFile) saveFileToDb(modIconFile, 'modIcon', null);
+                files.forEach(f => saveFileToDb(f.file, 'modFile', f.folder));
+                renderFiles();
+                autoSave();
+            });
         });
         li.appendChild(del);
         filesList.appendChild(li);
     });
 }
 
-// Custom Select / Searchable Dropdown Logic
 function createSearchableDropdown(inputElement, optionsContainer, allOptions, selectedValue, onSelectCallback) {
     optionsContainer.innerHTML = "";
 
@@ -456,13 +608,13 @@ addObjBtn.addEventListener("click", () => {
     addObject(group);
     addObjectGroupInput.value = "";
     toggleDropdown(addObjectGroupOptions, false);
+    autoSave();
 });
 
 function addObject(group, objName = "*") {
     if (!group) return;
     if (!model[group]) model[group] = {};
     
-    // Check if the group name is in the schema before proceeding
     if (!GROUP_KEYS.includes(group)) {
         showAlert(`Группа "${group}" не найдена в схеме.`);
         return;
@@ -514,13 +666,18 @@ function renderGroups() {
 
         const header = document.createElement("div");
         header.className = "group-header";
+
         const title = document.createElement("div");
         title.className = "group-title";
         title.textContent = group;
+
         const addForGroup = document.createElement("button");
         addForGroup.className = "btn btn-sm btn-outline-light";
         addForGroup.textContent = "Добавить объект";
-        addForGroup.addEventListener("click", () => addObject(group));
+        addForGroup.addEventListener("click", () => {
+            addObject(group);
+            autoSave();
+        });
 
         header.appendChild(title);
         header.appendChild(addForGroup);
@@ -555,22 +712,34 @@ function renderGroups() {
                     model[group][newName] = model[group][objectName] || {};
                     delete model[group][objectName];
                     repaint();
+                    autoSave();
                 }
             );
 
             objSelectContainer.appendChild(objSelectInput);
             objSelectContainer.appendChild(objSelectOptions);
 
-
             const actionsContainer = document.createElement("div");
             actionsContainer.className = "object-actions";
+
             const addParam = document.createElement("button");
             addParam.className = "btn btn-sm btn-outline-light";
             addParam.textContent = "Параметр";
+
+            const availableParamsToAdd = PARAMS_BY_GROUP[group].filter(p => !Object.keys(params).includes(p));
+            if (availableParamsToAdd.length === 0) addParam.disabled = true;
+
             addParam.addEventListener("click", () => {
-                model[group][objectName]["новый_параметр"] = "";
-                repaint();
+                if (availableParamsToAdd.length > 0) {
+                    const paramName = prompt("Выберите параметр:\n" + availableParamsToAdd.join("\n"), availableParamsToAdd[0]);
+                    if (paramName && availableParamsToAdd.includes(paramName)) {
+                        model[group][objectName][paramName] = "";
+                        repaint();
+                        autoSave();
+                    }
+                }
             });
+
             const delObj = document.createElement("button");
             delObj.className = "btn btn-sm btn-danger";
             delObj.textContent = "Удалить";
@@ -579,8 +748,10 @@ function renderGroups() {
                     delete model[group][objectName];
                     if (Object.keys(model[group]).length === 0) delete model[group];
                     repaint();
+                    autoSave();
                 });
             });
+
             actionsContainer.appendChild(addParam);
             actionsContainer.appendChild(delObj);
 
@@ -596,87 +767,57 @@ function renderGroups() {
                 const pill = document.createElement("div");
                 pill.className = "param-pill";
 
-                const paramHeader = document.createElement('div');
-                paramHeader.className = 'd-flex align-items-center gap-2';
+                const paramHeader = document.createElement("div");
+                paramHeader.className = "param-header d-flex justify-content-between align-items-center mb-1";
 
-                // Dropdown for parameter name
-                const paramNameSelect = document.createElement("select");
-                paramNameSelect.className = "form-select form-select-sm form-select-dark param-name-select";
-                
-                const allParams = PARAMS_BY_GROUP[group];
-                const availableParams = allParams.filter(p => !Object.keys(params).includes(p) || p === paramName);
-                if (!availableParams.includes(paramName)) {
-                    availableParams.push(paramName);
-                }
-                availableParams.forEach(p => {
-                    const option = document.createElement("option");
-                    option.value = p;
-                    option.textContent = p;
-                    paramNameSelect.appendChild(option);
-                });
-                
-                paramNameSelect.value = paramName;
+                const nameLabel = document.createElement("span");
+                nameLabel.textContent = paramName;
+                nameLabel.className = "param-name-label";
 
-                paramNameSelect.addEventListener('change', (e) => {
-                    const newParamName = e.target.value;
-                    const oldValue = model[group][objectName][paramName];
+                const delParamBtn = document.createElement("button");
+                delParamBtn.className = "remove-value-btn-param btn btn-sm btn-danger";
+                delParamBtn.textContent = "×";
+                delParamBtn.addEventListener("click", () => {
                     delete model[group][objectName][paramName];
-                    model[group][objectName][newParamName] = oldValue;
                     repaint();
+                    autoSave();
                 });
 
-                paramHeader.appendChild(paramNameSelect);
-
-                const addValueBtn = document.createElement("button");
-                addValueBtn.className = "add-value-btn";
-                addValueBtn.textContent = "+";
-                addValueBtn.addEventListener("click", () => {
-                    const currentValue = model[group][objectName][paramName];
-                    if (Array.isArray(currentValue)) {
-                        currentValue.push("");
-                    } else {
-                        model[group][objectName][paramName] = [currentValue, ""];
-                    }
-                    repaint();
-                });
-                paramHeader.appendChild(addValueBtn);
-
+                paramHeader.appendChild(nameLabel);
+                paramHeader.appendChild(delParamBtn);
                 pill.appendChild(paramHeader);
 
+                const addValueBtn = document.createElement("button");
+                addValueBtn.className = "add-value-btn btn btn-sm btn-outline-light mb-1";
+                addValueBtn.innerHTML = "+ Добавить значение...";
+                addValueBtn.addEventListener("click", () => {
+                    const currentValue = model[group][objectName][paramName];
+                    if (Array.isArray(currentValue)) currentValue.push("");
+                    else model[group][objectName][paramName] = [currentValue, ""];
+                    repaint();
+                    autoSave();
+                });
+                pill.appendChild(addValueBtn);
+
                 const valueContainer = document.createElement("div");
-                valueContainer.className = `param-value ${Array.isArray(params[paramName]) ? 'multiple' : ''}`;
+                valueContainer.className = `param-value d-flex flex-wrap gap-2`;
 
                 if (Array.isArray(params[paramName])) {
-                    const values = params[paramName] || [""];
-                    values.forEach((value, valueIndex) => {
-                        const valueItem = document.createElement("div");
-                        valueItem.className = "multiple-value-item";
+                    params[paramName].forEach((value, valueIndex) => {
                         const input = document.createElement("input");
-                        input.type = "text";
+                        input.type = isNumber ? "number" : "text";
                         input.value = value;
+                        input.className = "form-control form-control-sm";
+                        input.style.minWidth = "80px";
+
                         input.addEventListener("input", (e) => {
                             let newValue = e.target.value;
-                            if (paramSchema?.items?.type === 'number') {
-                                newValue = parseFloat(newValue);
-                            }
+                            if (isNumber) newValue = parseFloat(newValue);
                             model[group][objectName][paramName][valueIndex] = newValue;
                             debouncedUpdateJson();
                         });
 
-                        const removeValueBtn = document.createElement("button");
-                        removeValueBtn.className = "remove-value-btn";
-                        removeValueBtn.textContent = "–";
-                        removeValueBtn.addEventListener("click", () => {
-                            model[group][objectName][paramName].splice(valueIndex, 1);
-                            if (model[group][objectName][paramName].length === 0) {
-                                delete model[group][objectName][paramName];
-                            }
-                            repaint();
-                        });
-
-                        valueItem.appendChild(input);
-                        valueItem.appendChild(removeValueBtn);
-                        valueContainer.appendChild(valueItem);
+                        valueContainer.appendChild(input);
                     });
                 } else if (isBoolean) {
                     const input = document.createElement("input");
@@ -692,51 +833,37 @@ function renderGroups() {
                     const objKey = Object.keys(obj)[0];
                     const objValue = obj[objKey];
 
-                    const objContainer = document.createElement('div');
-                    objContainer.className = 'd-flex gap-2';
-
-                    const keyInput = document.createElement('input');
-                    keyInput.type = 'text';
-                    keyInput.placeholder = 'key';
-                    keyInput.value = objKey || '';
-                    keyInput.addEventListener('input', debounce((e) => {
+                    const keyInput = document.createElement("input");
+                    keyInput.type = "text";
+                    keyInput.placeholder = "key";
+                    keyInput.value = objKey || "";
+                    keyInput.addEventListener("input", debounce((e) => {
                         const newKey = e.target.value;
                         const oldValue = model[group][objectName][paramName]?.[objKey];
-                        if (newKey) {
-                            model[group][objectName][paramName] = { [newKey]: oldValue || "" };
-                        } else {
-                            delete model[group][objectName][paramName];
-                        }
+                        if (newKey) model[group][objectName][paramName] = { [newKey]: oldValue || "" };
+                        else delete model[group][objectName][paramName];
                         repaint();
+                        autoSave();
                     }, 500));
 
-                    const valueInput = document.createElement('input');
-                    valueInput.type = 'text';
-                    valueInput.placeholder = 'value';
-                    valueInput.value = objValue || '';
-                    valueInput.addEventListener('input', (e) => {
-                        if (objKey) {
-                            model[group][objectName][paramName][objKey] = e.target.value;
-                        }
+                    const valueInput = document.createElement("input");
+                    valueInput.type = "text";
+                    valueInput.placeholder = "value";
+                    valueInput.value = objValue || "";
+                    valueInput.addEventListener("input", (e) => {
+                        if (objKey) model[group][objectName][paramName][objKey] = e.target.value;
                         debouncedUpdateJson();
                     });
 
-                    objContainer.appendChild(keyInput);
-                    objContainer.appendChild(valueInput);
-                    valueContainer.appendChild(objContainer);
-                }
-                else {
+                    valueContainer.appendChild(keyInput);
+                    valueContainer.appendChild(valueInput);
+                } else {
                     const input = document.createElement("input");
-                    input.type = isNumber ? 'number' : 'text';
+                    input.type = isNumber ? "number" : "text";
                     input.value = params[paramName];
                     input.addEventListener("input", (e) => {
                         let value = e.target.value;
-                        if (input.type === 'number') {
-                            value = parseFloat(value);
-                            if (isNaN(value)) {
-                                value = e.target.value;
-                            }
-                        }
+                        if (isNumber) value = parseFloat(value);
                         model[group][objectName][paramName] = value;
                         debouncedUpdateJson();
                     });
@@ -744,16 +871,6 @@ function renderGroups() {
                 }
 
                 pill.appendChild(valueContainer);
-
-                const delParam = document.createElement("button");
-                delParam.className = "remove-value-btn-param";
-                delParam.textContent = "×";
-                delParam.addEventListener("click", () => {
-                    delete model[group][objectName][paramName];
-                    repaint();
-                });
-                pill.appendChild(delParam);
-
                 pList.appendChild(pill);
             });
 
@@ -762,11 +879,14 @@ function renderGroups() {
             oCard.appendChild(pList);
             grid.appendChild(oCard);
         });
+
         gCard.appendChild(header);
         gCard.appendChild(grid);
         groupsRoot.appendChild(gCard);
     });
 }
+
+
 
 function repaint() {
     loadMeta(model);
@@ -810,6 +930,7 @@ exportBtn.addEventListener("click", async () => {
 
 
 importBtn.addEventListener("click", () => importZipInput.click());
+resetDataBtn.addEventListener("click", resetDataAndReload);
 
 importZipInput.addEventListener("change", async (e) => {
     const file = e.target.files[0];
@@ -821,14 +942,21 @@ importZipInput.addEventListener("change", async (e) => {
         const newFiles = [];
         let newModIconFile = null;
 
-        // Process content.json
         const jsonFile = zip.file("content.json");
         if (jsonFile) {
             const content = await jsonFile.async("string");
-            Object.assign(newModel, JSON.parse(content));
+            const parsedJson = JSON.parse(content);
+            Object.assign(newModel, parsedJson);
+            
+            // Fix for multilinguality issue
+            if (typeof newModel["@title"] === "string") {
+                newModel["@title"] = { [currentLanguage.toUpperCase()]: newModel["@title"] };
+            }
+            if (typeof newModel["@description"] === "string") {
+                newModel["@description"] = { [currentLanguage.toUpperCase()]: newModel["@description"] };
+            }
         }
 
-        // Process icon.png
         const iconFile = zip.file("icon.png");
         if (iconFile) {
             const blob = await iconFile.async("blob");
@@ -842,7 +970,6 @@ importZipInput.addEventListener("change", async (e) => {
             };
         }
 
-        // Process data files
         zip.folder("data").forEach((relativePath, zipEntry) => {
             if (!zipEntry.dir) {
                 const parts = relativePath.split('/');
@@ -864,7 +991,15 @@ importZipInput.addEventListener("change", async (e) => {
         files = newFiles;
         modIconFile = newModIconFile;
         loadMeta(model);
+        
+        await clearIndexedDb();
+        if (modIconFile) await saveFileToDb(modIconFile, 'modIcon', null);
+        for (const f of files) {
+            await saveFileToDb(f.file, 'modFile', f.folder);
+        }
+
         repaint();
+        autoSave();
 
         showAlert("Мод успешно импортирован!");
     } catch (error) {
@@ -894,6 +1029,7 @@ applyBtn.addEventListener("click", () => {
         showAlert("Изменения применены!");
         codeError.classList.add("d-none");
         mainTabs.show();
+        autoSave();
     } catch (e) {
         codeError.textContent = "Не удалось применить, неверный JSON: " + e.message;
         codeError.classList.remove("d-none");

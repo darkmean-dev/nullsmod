@@ -416,3 +416,81 @@ body{
     background: var(--accent);
     color: #0f1115;
 }
+
+.object-actions {
+    display: flex;
+    flex-direction: column; /* кнопки вниз */
+    gap: 0.5rem;
+    margin-top: 0.5rem;
+}
+
+.object-actions .btn {
+    width: 40%;
+    min-width: 120px;
+}
+
+.param-pill {
+    display: flex;
+    flex-direction: column;
+    margin-bottom: 0.5rem;
+}
+
+.param-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 0.3rem;
+}
+
+.param-value input {
+    min-width: 80px;
+}
+
+.add-value-btn {
+    width: 100%;                /* растягиваем на весь контейнер */
+    padding: 0.5rem 0.75rem;    /* увеличиваем высоту кнопки */
+    text-align: left;           /* текст с иконкой слева */
+    border-radius: 4px;         /* минимальное скругление по углам */
+}
+
+
+.modal-content.soft {
+background-color: #1e2129;
+color: #c6c8d1;
+border: 1px solid #343a40;
+}
+
+.modal-header {
+border-bottom: 1px solid #343a40;
+}
+
+.modal-title {
+color: #c6c8d1;
+}
+
+.btn-close {
+filter: invert(75%) sepia(10%) saturate(200%) hue-rotate(175deg) brightness(95%) contrast(90%);
+}
+
+.modal-footer {
+border-top: 1px solid #343a40;
+}
+
+/* Стили для пользовательских алерт/подтверждений (если используются) */
+.custom-modal-content {
+background-color: #1e2129;
+color: #c6c8d1;
+border: 1px solid #343a40;
+}
+
+.custom-modal-header {
+border-bottom: 1px solid #343a40;
+}
+
+.custom-modal-title {
+color: #c6c8d1;
+}
+
+.custom-modal-footer {
+border-top: 1px solid #343a40;
+}
