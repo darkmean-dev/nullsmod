@@ -10,7 +10,7 @@ let model = {
 };
 let files = [];
 let modIconFile = null;
-let currentLanguage = "ru";
+let currentLanguage = "en";
 const KNOWN_LANGUAGES = ["ru", "en", "cn", "es", "pt", "tr", "fr"];
 
 const KNOWN_FOLDERS = ["movie", "font", "json", "music", "sc", "sc3d", "sfx", "shader"];
@@ -792,11 +792,10 @@ exportBtn.addEventListener("click", async () => {
         zip.file("icon.png", modIconFile);
     }
 
-    // Add Files
+    // Add files preserving their folder names in root
     if (files.length > 0) {
-        const dataFolder = zip.folder("data");
         files.forEach(item => {
-            const folder = dataFolder.folder(item.folder);
+            const folder = zip.folder(item.folder);
             folder.file(item.file.name, item.file);
         });
     }
@@ -807,6 +806,8 @@ exportBtn.addEventListener("click", async () => {
     link.download = "mod.zip";
     link.click();
 });
+
+
 
 importBtn.addEventListener("click", () => importZipInput.click());
 
